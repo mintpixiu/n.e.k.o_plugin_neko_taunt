@@ -12,8 +12,8 @@
 - 依赖：无（只用标准库 + N.E.K.O 插件 SDK）
 - 联网：**没有外部网络**；只对 `127.0.0.1:48911` 发一个只读 GET，读取宿主自己的「主动搭话」开关
 - 不读聊天、不读屏幕、不写文件
-- 市场状态：`1.0.0` 首次审核已提交（submission `219`），自动检查 `passed`，等待人工审核；
-  `1.0.1` 是「配合主动搭话」更新，发布记录见 [PUBLISHING.md](PUBLISHING.md)。
+- 市场状态：**已上架**。市场插件 id `158`，stable 最新版 `1.0.2`，
+  `verification_status: passed`；页面 <https://market.project-neko.cn/#/plugin/158>
 
 ---
 
