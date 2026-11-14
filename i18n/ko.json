@@ -1,0 +1,8 @@
+{
+  "plugin.name": "고양이 소녀 놀리기 · 자코",
+  "plugin.description": "고양이 소녀가 중국어·일본어·영어·한국어로 당신을 놀려줍니다. 일본어 메스가키/자코 대사가 중심이며, 미리보기·대사 라이브러리·기분별 선택을 지원합니다. 자동 놀리기는 기본적으로 꺼져 있습니다.",
+  "action.taunt_speak": "고양이 소녀가 놀리게 하기",
+  "action.taunt_preview": "대사 미리보기",
+  "action.taunt_library": "놀리기 대사 라이브러리",
+  "action.taunt_status": "상태 새로고침"
+}

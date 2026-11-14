@@ -1,0 +1,8 @@
+{
+  "plugin.name": "Catgirl Taunts · Zako",
+  "plugin.description": "Make the catgirl tease you in Chinese, Japanese, English or Korean — mostly Japanese mesugaki / zako lines. Preview, browse the library, pick a mood; timed auto-taunts are opt-in and off by default.",
+  "action.taunt_speak": "Have the catgirl taunt me",
+  "action.taunt_preview": "Preview a taunt",
+  "action.taunt_library": "Browse the taunt library",
+  "action.taunt_status": "Refresh taunt status"
+}

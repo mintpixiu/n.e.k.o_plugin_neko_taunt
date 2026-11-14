@@ -1,0 +1,8 @@
+{
+  "plugin.name": "猫娘の罵倒・ざぁこ",
+  "plugin.description": "猫娘が中国語・日本語・英語・韓国語であなたをからかいます。日本語のメスガキ／ざぁこ台詞が中心。プレビュー、台詞ライブラリ、気分別の選択に対応。自動罵倒は既定でオフです。",
+  "action.taunt_speak": "猫娘に罵倒してもらう",
+  "action.taunt_preview": "台詞をプレビュー",
+  "action.taunt_library": "罵倒ライブラリを見る",
+  "action.taunt_status": "状態を更新"
+}

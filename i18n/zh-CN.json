@@ -1,0 +1,8 @@
+{
+  "plugin.name": "猫娘嘲讽·杂鱼",
+  "plugin.description": "让猫娘用中文、日语、英语、韩语嘲讽你，以日语雌小鬼台词为主；可预览、查语录库、按情境选分类，自动嘲讽默认关闭。",
+  "action.taunt_speak": "让猫娘嘲讽一句",
+  "action.taunt_preview": "预览一句嘲讽",
+  "action.taunt_library": "查看嘲讽语录库",
+  "action.taunt_status": "刷新嘲讽插件状态"
+}

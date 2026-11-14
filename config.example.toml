@@ -1,0 +1,38 @@
+# neko_taunt —— runtime configuration template.
+#
+# The live configuration lives in the N.E.K.O plugin state directory
+# (`<storage-root>/plugins/neko_taunt/config/plugin.toml`, editable from
+# 插件管理 → 猫娘嘲讽·杂鱼 → 配置).  This file documents every key and its
+# default.  `plugin.toml` ships the same defaults, so a fresh install behaves
+# exactly like this template.
+
+[taunt]
+# auto | ja | zh | en | ko | mix
+# auto resolves to `default_language` below.  `ja` is the intended default:
+# the bank is mostly Japanese mesugaki lines, with Chinese/English/Korean
+# variants for the same moods.
+default_language = "ja"
+
+# 1 = light teasing, 2 = standard mesugaki, 3 = cheekier (still playful).
+default_intensity = 2
+
+# Timed taunts are opt-in.  Enabling this makes the plugin push a taunt every
+# `auto_taunt_interval_minutes` while the host is running, up to
+# `auto_taunt_max_per_session` times per plugin session, never inside
+# `quiet_hours`.
+auto_taunt = false
+auto_taunt_interval_minutes = 20
+auto_taunt_max_per_session = 8
+
+# auto | zako | clumsy | slow | lose | idle | clingy | praise
+# `idle` is the "猫娘还没到 / waiting" mood; `auto` picks a weighted category.
+auto_taunt_category = "auto"
+
+# Local clock time.  Supports overnight ranges such as 23:00-08:00.
+# Set to "" to disable quiet hours.
+quiet_hours = "23:00-08:00"
+
+# Include the Japanese romaji reading and Chinese meaning in the prompt that
+# is handed to the dialogue model.
+include_romaji = true
+include_translation = true

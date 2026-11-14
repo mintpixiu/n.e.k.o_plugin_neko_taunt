@@ -1,0 +1,76 @@
+[plugin]
+id = "neko_taunt"
+name = "猫娘嘲讽·杂鱼"
+type = "plugin"
+description = "让猫娘用中文、日语、英语、韩语嘲讽主人，以日语雌小鬼台词为主（杂鱼♡、ざぁこ♡、zako♡、자코♡）。支持按情境选分类、按强度选语气、预览和语录库；定时自动嘲讽默认关闭，开启后也受间隔、次数上限和免打扰时段限制。"
+short_description = "Multilingual catgirl taunts — mostly Japanese zako lines, with a no-repeat selector and opt-in auto mode."
+keywords = [
+    "嘲讽", "骂我", "骂一句", "损我", "杂鱼", "雌小鬼", "メスガキ", "台词", "语录",
+    "日语", "日本語", "中文", "英语", "英文", "韩语", "韩文",
+    "猫娘", "还没到", "等待", "撒娇", "傲娇", "ツンデレ",
+    "zako", "mesugaki", "taunt", "tease", "insult", "자코", "메스가키", "한국어",
+    "neko_taunt", "taunt_now",
+]
+version = "1.0.0"
+entry = "plugin.plugins.neko_taunt:NekoTauntPlugin"
+
+[plugin.author]
+name = "呆萌貔貅"
+
+[plugin.sdk]
+recommended = ">=0.1.0,<0.2.0"
+supported = ">=0.1.0,<0.3.0"
+
+[plugin.i18n]
+default_locale = "zh-CN"
+locales_dir = "i18n"
+
+[plugin.ui]
+enabled = true
+
+[[plugin.ui.guide]]
+id = "guide"
+title = "使用指南"
+entry = "docs/guide.md"
+permissions = ["state:read"]
+
+[plugin_runtime]
+enabled = true
+# The plugin only registers a dialogue tool and an opt-in timer.  Starting it
+# does not push anything: auto_taunt is false below, and every taunt delivery
+# is user-triggered unless the user explicitly enables auto mode.
+auto_start = true
+priority = 0
+timeout = 10
+startup_failure = "warn"
+
+# ---------------------------------------------------------------------------
+# Business configuration.
+#
+# The table is named [taunt], not [neko_taunt], on purpose: a top-level table
+# whose name equals the plugin id is migrated into the distribution profile,
+# while any other table stays in plugin.toml and is what config.dump() returns.
+# ---------------------------------------------------------------------------
+[taunt]
+# auto | ja | zh | en | ko | mix
+default_language = "ja"
+
+# 1 = light teasing, 2 = standard mesugaki, 3 = cheekier (still playful).
+default_intensity = 2
+
+# Opt-in timed taunts.  Disabled by default; enabling it is an explicit action
+# (taunt_mode or the config panel).
+auto_taunt = false
+auto_taunt_interval_minutes = 20
+auto_taunt_max_per_session = 8
+# auto | zako | clumsy | slow | lose | idle | clingy | praise
+auto_taunt_category = "auto"
+
+# Local clock quiet hours; overnight ranges are supported.  Empty = no quiet
+# hours.  Auto taunts never fire inside this range.
+quiet_hours = "23:00-08:00"
+
+# Include the romaji reading / Chinese meaning in the material handed to the
+# dialogue model.  Turning these off only shortens the prompt.
+include_romaji = true
+include_translation = true

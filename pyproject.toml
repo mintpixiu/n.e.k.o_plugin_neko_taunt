@@ -1,0 +1,14 @@
+[project]
+name = "neko_taunt"
+version = "1.0.0"
+description = "Multilingual catgirl taunts for N.E.K.O: hand-written Chinese, Japanese, English and Korean lines with a no-repeat selector and opt-in auto mode."
+requires-python = ">=3.11"
+authors = [{ name = "呆萌貔貅" }]
+
+# Runtime dependencies are deliberately empty.  The plugin uses only the
+# standard library and the N.E.K.O plugin SDK; there is nothing to vendor and
+# nothing to install into the frozen host interpreter.
+dependencies = []
+
+[tool.neko.build]
+exclude_files = []

@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "taunt": {
+      "type": "object",
+      "title": "猫娘嘲讽设置",
+      "description": "控制默认语言/强度、自动嘲讽的节奏与免打扰时段，以及交给对话模型的提示内容。",
+      "properties": {
+        "default_language": {
+          "type": "string",
+          "title": "默认语言",
+          "description": "auto 会按宿主语言回退；ja 为默认，因为语录库以日语为主。mix 以日语为主，随机混入中/英/韩。",
+          "enum": ["auto", "ja", "zh", "en", "ko", "mix"],
+          "default": "ja",
+          "x-title-i18n": {
+            "zh-CN": "默认语言",
+            "en": "Default language",
+            "ja": "既定の言語",
+            "ko": "기본 언어"
+          },
+          "x-description-i18n": {
+            "zh-CN": "auto 会按宿主语言回退；ja 为默认，因为语录库以日语为主。",
+            "en": "auto falls back to the host language; ja is the default because the bank is mostly Japanese.",
+            "ja": "auto はホスト言語にフォールバックします。日本語中心のため既定は ja です。",
+            "ko": "auto는 호스트 언어로 대체됩니다. 일본어 중심이라 기본값은 ja입니다."
+          }
+        },
+        "default_intensity": {
+          "type": "integer",
+          "title": "默认强度",
+          "description": "1 = 轻飘飘的撒娇式；2 = 标准雌小鬼；3 = 更欠揍，但仍然只是玩闹。",
+          "minimum": 1,
+          "maximum": 3,
+          "default": 2,
+          "x-title-i18n": {
+            "zh-CN": "默认强度",
+            "en": "Default intensity",
+            "ja": "既定の強度",
+            "ko": "기본 강도"
+          }
+        },
+        "auto_taunt": {
+          "type": "boolean",
+          "title": "开启定时自动嘲讽",
+          "description": "默认关闭。开启后猫娘会按间隔主动嘲讽，受次数上限和免打扰时段限制。",
+          "default": false,
+          "x-title-i18n": {
+            "zh-CN": "开启定时自动嘲讽",
+            "en": "Enable timed auto-taunts",
+            "ja": "定時自動罵倒を有効化",
+            "ko": "정기 자동 놀리기 사용"
+          },
+          "x-description-i18n": {
+            "zh-CN": "默认关闭。开启后猫娘会按间隔主动嘲讽。",
+            "en": "Off by default. When on, the catgirl taunts on a timer.",
+            "ja": "既定ではオフ。オンにすると一定間隔で自分から罵倒します。",
+            "ko": "기본적으로 꺼져 있습니다. 켜면 일정 간격으로 먼저 놀립니다."
+          }
+        },
+        "auto_taunt_interval_minutes": {
+          "type": "integer",
+          "title": "自动嘲讽间隔（分钟）",
+          "description": "两次自动嘲讽之间至少间隔多久。最小 5 分钟，最大 180 分钟。",
+          "minimum": 5,
+          "maximum": 180,
+          "default": 20,
+          "x-title-i18n": {
+            "zh-CN": "自动嘲讽间隔（分钟）",
+            "en": "Auto-taunt interval (minutes)",
+            "ja": "自動罵倒の間隔（分）",
+            "ko": "자동 놀리기 간격(분)"
+          }
+        },
+        "auto_taunt_max_per_session": {
+          "type": "integer",
+          "title": "每次会话最多自动嘲讽几次",
+          "description": "插件每次启动后最多主动嘲讽多少次，防止刷屏。",
+          "minimum": 1,
+          "maximum": 50,
+          "default": 8,
+          "x-title-i18n": {
+            "zh-CN": "每次会话最多自动嘲讽几次",
+            "en": "Max auto-taunts per session",
+            "ja": "1セッションの自動罵倒上限",
+            "ko": "세션당 최대 자동 놀리기"
+          }
+        },
+        "auto_taunt_category": {
+          "type": "string",
+          "title": "自动嘲讽偏好的分类",
+          "description": "auto = 按权重随机；idle = 猫娘还没到/等待；也可固定为其他分类。",
+          "enum": ["auto", "zako", "clumsy", "slow", "lose", "idle", "clingy", "praise"],
+          "default": "auto",
+          "x-title-i18n": {
+            "zh-CN": "自动嘲讽偏好的分类",
+            "en": "Preferred auto-taunt mood",
+            "ja": "自動罵倒の気分",
+            "ko": "자동 놀리기 분위기"
+          }
+        },
+        "quiet_hours": {
+          "type": "string",
+          "title": "免打扰时段",
+          "description": "本地时间 HH:MM-HH:MM，支持跨午夜（如 23:00-08:00）；留空表示不限制。",
+          "default": "23:00-08:00",
+          "maxLength": 32,
+          "x-title-i18n": {
+            "zh-CN": "免打扰时段",
+            "en": "Quiet hours",
+            "ja": "静かな時間帯",
+            "ko": "방해 금지 시간"
+          },
+          "x-description-i18n": {
+            "zh-CN": "本地时间 HH:MM-HH:MM，支持跨午夜；留空表示不限制。",
+            "en": "Local time HH:MM-HH:MM, overnight supported; empty means no quiet hours.",
+            "ja": "ローカル時刻 HH:MM-HH:MM。日をまたげます。空欄で無効。",
+            "ko": "로컬 시간 HH:MM-HH:MM, 자정 넘김 지원. 비우면 제한 없음."
+          }
+        },
+        "include_romaji": {
+          "type": "boolean",
+          "title": "在提示里带日语罗马音",
+          "description": "帮助对话模型读准日语台词；关闭只会让提示更短。",
+          "default": true,
+          "x-title-i18n": {
+            "zh-CN": "在提示里带日语罗马音",
+            "en": "Include Japanese romaji",
+            "ja": "ローマ字読みを含める",
+            "ko": "일본어 로마자 포함"
+          }
+        },
+        "include_translation": {
+          "type": "boolean",
+          "title": "在提示里带中文释义",
+          "description": "让对话模型理解台词含义，避免把「杂鱼」误解成真正的辱骂。",
+          "default": true,
+          "x-title-i18n": {
+            "zh-CN": "在提示里带中文释义",
+            "en": "Include Chinese meaning",
+            "ja": "中国語の意味を含める",
+            "ko": "중국어 뜻 포함"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+name = "default"
+enabled_plugins = ["neko_taunt"]
+
+[plugin.neko_taunt]
+enabled = true
+auto_start = true
