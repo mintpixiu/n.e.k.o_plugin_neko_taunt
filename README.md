@@ -11,6 +11,8 @@
 - 类型：普通 Plugin（Python，独立进程）
 - 依赖：无（只用标准库 + N.E.K.O 插件 SDK）
 - 联网：**没有**。不读聊天、不读屏幕、不写文件
+- 市场状态：首次审核已提交（submission `219`），自动检查 `passed`，等待人工审核；
+  GitHub Release `v1.0.0` 已就绪。审核通过后才会生成 Market stable 版本。
 
 ---
 

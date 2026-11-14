@@ -1,34 +1,116 @@
 # 发布到 N.E.K.O 插件市场（neko_taunt）
 
-这份文档记录「猫娘嘲讽·杂鱼」的发布进度、验证证据和需要账号才能完成的步骤。
+这份文档记录「猫娘嘲讽·杂鱼」的发布进度、验证证据和剩余的人工审核步骤。
 
-> 市场流程分两段：**首次审核在网页提交**（需要作者账号登录），
-> 审核通过后 `neko-plugin publish` 才会创建 GitHub Release 并在市场生成可安装版本。
-> `publish` 不能替代首次投稿。
+> 市场流程分两段：**首次审核**通过后，Market 才会接受 GitHub Release 并生成可安装版本。
+> 当前状态：**审核申请已提交、自动检查已通过、等待人工审核**。
+> 代码、测试、GitHub Release 和发布证据都已完成；只差审核员点通过。
 
 ---
 
-## 1. 本地验证（已完成）
+## 1. 当前状态
 
-在 N.E.K.O 源码目录（`N.E.K.O/`）用官方 CLI：
+| 项 | 状态 |
+|---|---|
+| 本地开发 + 测试 | ✅ 32 passed / ruff clean |
+| 官方 `check -r --market-release` | ✅ passed / payload hash verified |
+| 真机导入 + 启动 | ✅ running，错误日志为空 |
+| GitHub 仓库 | ✅ https://github.com/mintpixiu/n.e.k.o_plugin_neko_taunt |
+| Verify CI | ✅ success |
+| GitHub Release `v1.0.0` | ✅ 3 个标准资产 |
+| Market 首次审核 | 🕒 submission `219`，`submitted`，自动检查 `passed`，`awaiting_human` |
+| Market stable 版本 | ⏳ 审核通过后执行 `publish market` |
+
+**唯一剩余动作（需要审核员）**：在 Market 后台通过 submission 219。
+通过后运行：
+
+```powershell
+cd <N.E.K.O 源码根目录>
+uv run neko-plugin publish market `
+  https://github.com/mintpixiu/n.e.k.o_plugin_neko_taunt/releases/tag/v1.0.0
+```
+
+本机 2026-11-14 试运行该命令返回：
+
+```json
+{"detail": "release_repo_mismatch: GitHub release 未绑定到唯一的已通过插件"}
+```
+
+这不是发布配置错误，而是首次审核尚未通过时的预期拒绝。
+
+---
+
+## 2. 可复现的验证证据
+
+### 2.1 官方发布检查（本地）
 
 ```text
-neko-plugin check -r <neko_taunt 路径>       passed
+neko-plugin check -r --market-release <neko_taunt>
+  passed
   version=1.0.0
-  package_sha256=a5a136721282e54d0bec369e813ab31cb5dcfbe476c394be9747d302f9287ffd
-  payload_hash=8cca06bf12f8c853081d1940c5250024e81e18415547103982d6b86274e01e8d
   payload_hash_verified=True
   tests=passed
 ```
 
-插件内测试与 lint：
+`GITHUB_REF_NAME` 在本地未设置时会警告 tag/version 对齐未检查；CI 中该检查已通过。
+
+### 2.2 插件内测试与 lint
 
 ```text
-python -m pytest -q                         30 passed
-python -m ruff check .                      All checks passed
+python -m pytest -q                         32 passed
+ruff 0.12.4（CI 参数）                      All checks passed
 ```
 
-真机宿主导入 + 启动（Windows，Steam 版 N.E.K.O）：
+CI 的 ruff 0.12.4 第一次抓到了 `tests/test_lines.py` 的 E402 / I001；
+已通过 `conftest.py` + `pytest.importorskip("lines")` 修掉，并在 GitHub Actions 复验。
+
+### 2.3 GitHub Actions
+
+| 工作流 | 结果 | 链接 |
+|---|---|---|
+| Verify（tag `v1.0.0`） | success | https://github.com/mintpixiu/n.e.k.o_plugin_neko_taunt/actions/runs/43551205658 |
+| Release（tag `v1.0.0`） | success | https://github.com/mintpixiu/n.e.k.o_plugin_neko_taunt/actions/runs/43551205744 |
+
+> Release 工作流 pin 到 `0ac2afd0e40250a4cff1501a32f2db1124fe971d`：
+> 2026-11-14 当天 upstream `@main` 的 `plugin-market-release.yml` 作为 reusable
+> workflow 会 `startup_failure`（same-repo Verify `@main` 正常）。诊断分支用
+> pinned commit 调用后正常进入 job 并按预期报 `requires a tag ref`，因此 pin
+> 是该 upstream 故障的规避，不是插件配置问题。
+
+### 2.4 GitHub Release
+
+- 页面：https://github.com/mintpixiu/n.e.k.o_plugin_neko_taunt/releases/tag/v1.0.0
+- tag/commit：`v1.0.0` → `739c3fcf1b89da5736464bec8c4edc590b051b81`
+- 资产：
+  - `neko_taunt.neko-plugin`（59,592 bytes）
+  - `neko_taunt.market-release-check.txt`
+  - `market-evidence.json`
+
+`market-evidence.json` 登记值：
+
+```json
+{
+  "plugin_id": "neko_taunt",
+  "version": "1.0.0",
+  "source_commit": "739c3fcf1b89da5736464bec8c4edc590b051b81",
+  "package": {
+    "name": "neko_taunt.neko-plugin",
+    "sha256": "44373f6e85333e12a739c73a5f346a9696153891005b97848a2281806565b5a7",
+    "payload_hash": "1ad7027f09d3c16abcc79b01c89a3df9418da192bcfa315950dde7b63e0f0465",
+    "size": 59592
+  },
+  "workflow_run_id": 43551205744
+}
+```
+
+本地下载 Release 包后复核：
+
+```text
+sha256 == 44373f6e…  OK
+runtime files 与真机已启动版本逐字节一致（仅 tests 文件不同）  OK
+```
+
+### 2.5 真机宿主验证（Windows，Steam 版 N.E.K.O）
 
 ```text
 导入 .neko-plugin                             payload_hash_verified=true
@@ -46,55 +128,39 @@ taunt_mode(false, 20min)                     恢复默认，自动关闭
 ```
 
 > 尚未在真实对话会话里让三个猫娘逐个开口；`taunt_speak` 的 push 已提交到宿主，
-> 当前宿主没有活动会话，因此没有产生 LLM 回复。这一点不冒充已验证。
+> 测试时宿主没有活动会话，因此没有产生 LLM 回复。这一点不冒充已验证。
 
 ---
 
-## 2. 需要账号才能做的三步
+## 3. Market 投稿记录
 
-### 2.1 建仓库并推送源码
+| 项 | 值 |
+|---|---|
+| submission id | `219` |
+| snapshot id | `298` |
+| 状态 | `submitted` |
+| decision | 空（等待人工） |
+| 审核阶段 | `awaiting_human` / `next_actor=reviewer` |
+| 自动检查 | `idle` / `passed` / 0 findings |
+| 提交 commit | `bb224a3acebfa51b8889d6fffb0ed3f46c43bb54` |
+| 名称 | 猫娘嘲讽·杂鱼 |
+| slug | `neko_taunt` |
+| 分区 | 娱乐 |
+| 标签 | 娱乐 / 互动 / 功能 / 情感 |
+| license | MIT |
 
-GitHub 公开空仓库，名称必须是：
+投稿使用的是桌面端 Market OAuth（`~/.neko/market_auth.json`），
+`repository-preview` 返回 `identity_status=matched`、
+`workflow_status=available`，`preflight` 返回 `ready=true`、0 issues。
 
-```text
-n.e.k.o_plugin_neko_taunt
-```
-
-```powershell
-cd <neko_taunt 目录>
-git init
-git add .
-git commit -m "feat: multilingual catgirl taunts for N.E.K.O"
-git remote add origin https://github.com/mintpixiu/n.e.k.o_plugin_neko_taunt.git
-git push -u origin main
-```
-
-### 2.2 等待 Verify 工作流
-
-打开仓库 **Actions**，等 `Verify N.E.K.O Plugin` 变绿。它会在 Ubuntu 上跑
-ruff → `sync` → `check -r` → 构建 → payload hash 校验。
-
-### 2.3 提交首次审核
-
-1. 打开 <https://market.project-neko.cn/#/upload> 并登录。
-2. 填仓库地址 `https://github.com/mintpixiu/n.e.k.o_plugin_neko_taunt`。
-3. 点「读取仓库信息」，确认名称；分区选「娱乐」或「功能」，标签选 1–5 个。
-4. 提交审核申请；在「我的插件」里看检查结果与审核意见。
-
-审核通过后：
-
-```powershell
-cd <N.E.K.O 源码根目录>
-uv run neko-plugin publish "C:\path\to\neko_taunt"
-```
-
-它会再次跑发布检查 → 确认 HEAD 已推送 → 打 `v1.0.0` 标签 → 等 Actions 产出
-`neko_taunt.neko-plugin`、`neko_taunt.market-release-check.txt`、`market-evidence.json`
-→ 通知市场发布 stable 版本。
+> 审核提交后 main 又前进了两个 docs/CI 提交（`3c64b48`、`739c3fc`）；
+> 运行时代码未变，Release 的 payload 与审核快照一致到可执行文件级别。
+> 审核员若要求按最新 commit 重新绑定，可用 submission 的 Revision 流程更新；
+> 当前不主动重置审核队列。
 
 ---
 
-## 3. 审核时最可能被看的点（本插件的对应做法）
+## 4. 市场审核关注点（本插件对应做法）
 
 | 审核关注 | 本插件的处理 |
 |---|---|
@@ -105,38 +171,32 @@ uv run neko-plugin publish "C:\path\to\neko_taunt"
 | 是否读隐私 | 不联网、不读聊天/屏幕/剪贴板/文件；不持久化对话 |
 | 语言支持 | 中文/日语/英语/韩语台词；i18n 四语；配置说明四语 |
 | 依赖是否可复现 | 无第三方 Python 依赖，无 `requirements.txt`，无 `vendor/` |
-| 测试 | 30 个纯 stdlib 测试，Linux CI 可跑 |
+| 测试 | 32 个纯 stdlib 测试，Linux CI 可跑 |
 | 文档 | README / DESIGN / docs/guide.md / PUBLISHING.md |
 
 ---
 
-## 4. 发布后自查
+## 5. 本机发布环境备注（不影响 CI/Market）
 
-```powershell
-# 1. GitHub Releases 里有三个资产
-#    neko_taunt.neko-plugin / neko_taunt.market-release-check.txt / market-evidence.json
-# 2. 市场详情页出现 1.0.0，stable 最新版不为空
-# 3. 在 N.E.K.O → 插件管理 → 导入 下载回来的包，再说「骂我一句」验证
-```
+这台 Windows 机器上 DSH 子进程无法写 `%LOCALAPPDATA%`，导致：
+
+- `portalocker` 无法在 `%LOCALAPPDATA%\neko-plugin\sync-locks` 建锁；
+- `uvx` 无法使用 `%LOCALAPPDATA%\uv\cache`；
+- Python `httpx` 不信任本机代理的 GitHub 证书链。
+
+本机用三个临时措施绕过后完成了 GitHub Release：
+
+1. 把 `%LOCALAPPDATA%\neko-plugin\sync-locks` 指向工作区目录的 junction；
+2. 用 `tools/uvx_shim.py` + `.bin\uvx.exe` 把 `uvx ruff==0.12.4` 路由到已安装的 ruff；
+3. `SSL_CERT_FILE` 指向 certifi + Windows 根证书合并的 PEM。
+
+这些只影响本机 CLI 发布，GitHub Actions 和 Market 使用的是标准环境；
+不要把 junction、`.certs`、`.uv-cache` 提交进插件仓库。
 
 ---
 
-## 5. 版本号纪律
+## 6. 版本号纪律
 
 - 插件 ID `neko_taunt` 发布后不再变。
 - 已发布过的版本号不能复用；改代码就升版本（例如 `1.0.1`），commit、push、再 `publish`。
 - 撤回是单向的：撤回过或发布过的版本号都不能再用，只能发新版本。
-
----
-
-## 6. 当前状态
-
-| 项 | 状态 |
-|---|---|
-| 本地开发 + 测试 | ✅ 30 passed / ruff clean |
-| 官方 `check -r` | ✅ passed / payload hash verified |
-| 真机导入 + 启动 | ✅ running，错误日志为空 |
-| GitHub 仓库 | ⏳ 待创建/推送 |
-| Verify CI | ⏳ 待跑 |
-| 市场首次审核 | ⏳ 待提交（需作者账号登录） |
-| GitHub Release + Market stable | ⏳ 审核通过后执行 |
