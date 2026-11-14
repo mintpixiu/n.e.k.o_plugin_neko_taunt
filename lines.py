@@ -74,12 +74,13 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "default_language": "ja",
     "default_intensity": 2,
     "auto_taunt": False,
-    "auto_taunt_interval_minutes": 20,
+    "auto_taunt_interval_minutes": 0,
     "auto_taunt_max_per_session": 8,
     "auto_taunt_category": "auto",
     "quiet_hours": "23:00-08:00",
     "include_romaji": True,
     "include_translation": True,
+    "follow_host_proactive": True,
 }
 
 # ---------------------------------------------------------------------------
@@ -613,7 +614,7 @@ def normalize_config(raw: Any) -> dict[str, Any]:
         "default_intensity": clamp_intensity(data.get("default_intensity", 2)),
         "auto_taunt": _as_bool(data.get("auto_taunt", False), False),
         "auto_taunt_interval_minutes": max(
-            5, min(180, _safe_int(data.get("auto_taunt_interval_minutes", 20), 20))
+            0, min(180, _safe_int(data.get("auto_taunt_interval_minutes", 0), 0))
         ),
         "auto_taunt_max_per_session": max(
             1, min(50, _safe_int(data.get("auto_taunt_max_per_session", 8), 8))
@@ -622,6 +623,7 @@ def normalize_config(raw: Any) -> dict[str, Any]:
         "quiet_hours": str(data.get("quiet_hours", "23:00-08:00") or "")[:32],
         "include_romaji": _as_bool(data.get("include_romaji", True), True),
         "include_translation": _as_bool(data.get("include_translation", True), True),
+        "follow_host_proactive": _as_bool(data.get("follow_host_proactive", True), True),
     }
 
 
@@ -836,6 +838,28 @@ class TauntSelector:
 # ---------------------------------------------------------------------------
 # Rendering helpers
 # ---------------------------------------------------------------------------
+
+
+def effective_auto_interval_seconds(
+    configured_minutes: Any,
+    *,
+    host_interval_seconds: int = 0,
+    follow_host: bool = True,
+) -> int:
+    """Resolve the auto-taunt cadence.
+
+    * configured 5-180 -> that many minutes.
+    * configured 0 + follow_host -> the host's proactive interval, at least
+      5 minutes (and at most 60 minutes).
+    * anything else -> a conservative 20-minute fallback.
+    """
+
+    minutes = max(0, min(180, _safe_int(configured_minutes, 0)))
+    if minutes > 0:
+        return max(5, minutes) * 60
+    if follow_host and host_interval_seconds > 0:
+        return max(300, min(3600, int(host_interval_seconds)))
+    return 20 * 60
 
 
 def library_summary(

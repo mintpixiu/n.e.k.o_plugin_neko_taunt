@@ -11,7 +11,7 @@ keywords = [
     "zako", "mesugaki", "taunt", "tease", "insult", "자코", "메스가키", "한국어",
     "neko_taunt", "taunt_now",
 ]
-version = "1.0.0"
+version = "1.0.1"
 entry = "plugin.plugins.neko_taunt:NekoTauntPlugin"
 
 [plugin.author]
@@ -61,10 +61,17 @@ default_intensity = 2
 # Opt-in timed taunts.  Disabled by default; enabling it is an explicit action
 # (taunt_mode or the config panel).
 auto_taunt = false
-auto_taunt_interval_minutes = 20
+# 0 = follow N.E.K.O's own proactive-chat interval (at least 5 minutes);
+# 5-180 = use this fixed interval.
+auto_taunt_interval_minutes = 0
 auto_taunt_max_per_session = 8
 # auto | zako | clumsy | slow | lose | idle | clingy | praise
 auto_taunt_category = "auto"
+
+# When true, auto-taunts only fire while N.E.K.O's own "主动搭话" switch is on,
+# and the plugin follows that switch's interval when the value above is 0.
+# This is the main integration point with the host's proactive chat.
+follow_host_proactive = true
 
 # Local clock quiet hours; overnight ranges are supported.  Empty = no quiet
 # hours.  Auto taunts never fire inside this range.

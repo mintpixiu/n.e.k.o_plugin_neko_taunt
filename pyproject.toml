@@ -1,6 +1,6 @@
 [project]
 name = "neko_taunt"
-version = "1.0.0"
+version = "1.0.1"
 description = "Multilingual catgirl taunts for N.E.K.O: hand-written Chinese, Japanese, English and Korean lines with a no-repeat selector and opt-in auto mode."
 requires-python = ">=3.11"
 authors = [{ name = "呆萌貔貅" }]

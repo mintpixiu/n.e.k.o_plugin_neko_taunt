@@ -163,7 +163,7 @@ def test_normalize_config_clamps_and_types() -> None:
     assert cfg["default_language"] == "ja"
     assert cfg["default_intensity"] == 3
     assert cfg["auto_taunt"] is True
-    assert cfg["auto_taunt_interval_minutes"] == 5
+    assert cfg["auto_taunt_interval_minutes"] == 1
     assert cfg["auto_taunt_max_per_session"] == 50
     assert cfg["auto_taunt_category"] == "zako"
     assert cfg["include_romaji"] is False
@@ -191,6 +191,16 @@ def test_payload_shapes() -> None:
     assert payload["text"] == line.text
     assert payload["translation_zh"] == line.meaning
     assert "romaji" not in payload
+
+
+def test_effective_auto_interval() -> None:
+    assert lines.effective_auto_interval_seconds(20) == 20 * 60
+    assert lines.effective_auto_interval_seconds(0, host_interval_seconds=120) == 300
+    assert lines.effective_auto_interval_seconds(0, host_interval_seconds=600) == 600
+    assert lines.effective_auto_interval_seconds(0, host_interval_seconds=0) == 20 * 60
+    assert lines.effective_auto_interval_seconds(0, host_interval_seconds=7200) == 3600
+    assert lines.effective_auto_interval_seconds(0, host_interval_seconds=120, follow_host=False) == 20 * 60
+    assert lines.effective_auto_interval_seconds(1) == 300
 
 
 @pytest.mark.parametrize("language", ["auto", "ja", "zh", "en", "ko", "mix"])

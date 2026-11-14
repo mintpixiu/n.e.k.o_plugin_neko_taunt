@@ -1,24 +1,28 @@
 """N.E.K.O plugin facade: multilingual catgirl taunts ("zako♡").
 
-The plugin owns no network client and no model client.  It keeps a hand-written
-line bank (``lines.py``), picks a line with a small no-repeat selector, and hands
-the exact line plus delivery guidance to the host:
+The plugin owns no model client and no external network client.  It keeps a
+hand-written line bank (``lines.py``), picks a line with a small no-repeat
+selector, and hands the exact line plus delivery guidance to the host:
 
 * ``neko_taunt`` is the dialogue-time LLM tool; the model speaks the returned
   line in character.
 * ``taunt_now`` is the agent-routed entry that returns the same material.
 * ``taunt_speak`` is the explicit Plugin Center / UI action that pushes a
   proactive turn, used when no dialogue turn is already in flight.
+* ``taunt_proactive`` is the host-proactive-aware push: it only speaks while
+  N.E.K.O's own "主动搭话" switch is on.
 * ``taunt_preview``, ``taunt_library``, ``taunt_status`` and ``taunt_mode`` are
   read/control entries.
 
 Auto-taunt is opt-in (``auto_taunt = false`` by default), rate-limited and
-silent during quiet hours.  The plugin never reads chat history, the screen,
-files or the network.
+silent during quiet hours.  When ``follow_host_proactive`` is on it also
+follows N.E.K.O's own proactive-chat switch; the only network call is a
+read-only loopback GET to the host's ``/api/proactive/mode``.
 """
 
 from __future__ import annotations
 
+import asyncio
 import threading
 import time
 from datetime import datetime
@@ -38,7 +42,7 @@ from plugin.sdk.plugin import (
     ui,
 )
 
-from . import lines
+from . import host_proactive, lines
 
 # ---------------------------------------------------------------------------
 # JSON schemas shared by entries and tools
@@ -126,7 +130,10 @@ MODE_SCHEMA: Dict[str, Any] = {
             "minimum": 0,
             "maximum": 180,
             "default": 0,
-            "description": "自动嘲讽间隔（分钟）；0 表示沿用当前配置。最小 5 分钟。",
+            "description": (
+                "自动嘲讽间隔（分钟）；0 表示跟随宿主主动搭话间隔（最低 5 分钟），"
+                "设置 1-4 会按 5 分钟执行。"
+            ),
         },
     },
     "required": ["enabled"],
@@ -165,6 +172,12 @@ TAUNT_SPEAK_DESCRIPTION = (
     "否则会多出一轮。对话中优先用 neko_taunt 或 taunt_now。"
 )
 
+TAUNT_PROACTIVE_DESCRIPTION = (
+    "按宿主「主动搭话」的开关状态说一句嘲讽：只有 N.E.K.O 的主动搭话开启时才推送，"
+    "关闭时安静返回 sent=false，不会打扰主人。适合让猫娘在主动搭话时顺便损一句；"
+    "如果主人明确要求「现在就骂我」，用 taunt_speak 或 taunt_now，不要用这个入口。"
+)
+
 TAUNT_PREVIEW_DESCRIPTION = (
     "预览一句嘲讽和同分类的其他例子，不推送、不触发对话。适合「先看看有什么台词」"
     "「给我几个例子」「这句中文什么意思」。"
@@ -176,13 +189,16 @@ TAUNT_LIBRARY_DESCRIPTION = (
 )
 
 TAUNT_STATUS_DESCRIPTION = (
-    "查询嘲讽插件状态：默认语言、默认强度、自动嘲讽是否开启、本次已自动嘲讽次数、"
-    "语录总数和最近用过的台词 id。不会推送消息。"
+    "查询嘲讽插件状态：默认语言、默认强度、自动嘲讽是否开启、是否跟随宿主主动搭话、"
+    "宿主主动搭话的开关/间隔、本次已自动嘲讽次数、语录总数和最近用过的台词 id。"
+    "不会推送消息。"
 )
 
 TAUNT_MODE_DESCRIPTION = (
     "开关定时自动嘲讽，并调整间隔。自动嘲讽只在主人明确开启后运行，"
-    "受间隔、每次会话上限和免打扰时段限制。关闭时立即停止。"
+    "默认跟随 N.E.K.O 的主动搭话开关：宿主关闭主动搭话时绝不主动打扰；"
+    "间隔传 0 表示跟随宿主主动搭话间隔（最低 5 分钟）。"
+    "仍受每次会话上限和免打扰时段限制，关闭时立即停止。"
 )
 
 # ---------------------------------------------------------------------------
@@ -220,6 +236,7 @@ class NekoTauntPlugin(NekoPluginBase):
         self.logger = getattr(ctx, "logger", None) or get_plugin_logger(self.plugin_id, "neko_taunt")
         self._cfg: Dict[str, Any] = dict(lines.DEFAULT_CONFIG)
         self._selector = lines.TauntSelector()
+        self._host_probe = host_proactive.HostProactiveProbe()
         self._auto_lock = threading.Lock()
         self._auto_last_at = time.time()
         self._auto_count = 0
@@ -240,6 +257,30 @@ class NekoTauntPlugin(NekoPluginBase):
         self._apply_config(cfg if isinstance(cfg, Mapping) else {})
         return self._cfg
 
+    async def _read_host_proactive(self, *, force: bool = False) -> host_proactive.HostProactiveState:
+        """Probe the host without blocking the plugin's event loop."""
+
+        try:
+            return await asyncio.to_thread(self._host_probe.get, force=force)
+        except Exception as exc:  # the probe itself should already be total
+            self.logger.warning("[neko_taunt] host proactive probe failed: {}", type(exc).__name__)
+            return host_proactive.HostProactiveState(False, False, 0, "unknown", "probe_failed")
+
+    def _effective_auto_interval_seconds(
+        self,
+        host_state: host_proactive.HostProactiveState | None,
+    ) -> int:
+        """Configured minutes win; 0 means follow the host's own interval."""
+
+        host_interval = 0
+        if host_state is not None and host_state.available:
+            host_interval = host_state.interval_seconds
+        return lines.effective_auto_interval_seconds(
+            self._cfg.get("auto_taunt_interval_minutes", 0),
+            host_interval_seconds=host_interval,
+            follow_host=bool(self._cfg.get("follow_host_proactive", True)),
+        )
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
@@ -259,6 +300,7 @@ class NekoTauntPlugin(NekoPluginBase):
             "languages": list(lines.LANGUAGES),
             "default_language": cfg["default_language"],
             "auto_taunt": cfg["auto_taunt"],
+            "follow_host_proactive": cfg["follow_host_proactive"],
         })
 
     @lifecycle(id="shutdown")
@@ -327,6 +369,7 @@ class NekoTauntPlugin(NekoPluginBase):
         *,
         situation: str = "",
         auto: bool = False,
+        proactive: bool = False,
         target_lanlan: str | None = None,
     ) -> tuple[bool, str]:
         prompt = lines.delivery_prompt(
@@ -336,15 +379,21 @@ class NekoTauntPlugin(NekoPluginBase):
             include_translation=bool(self._cfg.get("include_translation", True)),
             auto=auto,
         )
+        if proactive:
+            event_type = "proactive_taunt"
+        elif auto:
+            event_type = "auto_taunt"
+        else:
+            event_type = "taunt"
         result = self.push_message(
             visibility=[],
             ai_behavior="respond",
             parts=[{"type": "text", "text": prompt}],
             source="neko_taunt",
-            priority=4 if auto else 7,
+            priority=5 if proactive else (4 if auto else 7),
             target_lanlan=target_lanlan or None,
             metadata={
-                "event_type": "auto_taunt" if auto else "taunt",
+                "event_type": event_type,
                 "line_id": line.id,
                 "language": line.lang,
                 "category": line.category,
@@ -474,6 +523,71 @@ class NekoTauntPlugin(NekoPluginBase):
             "submitted": True,
         })
 
+    @plugin_entry(
+        id="taunt_proactive",
+        name="主动搭话式嘲讽",
+        description=TAUNT_PROACTIVE_DESCRIPTION,
+        input_schema=TAUNT_SCHEMA,
+        llm_result_fields=["summary", "line"],
+        metadata={"result_kind": "event", "expires_in_s": 30},
+    )
+    async def taunt_proactive_entry(
+        self,
+        *,
+        language: Any = "auto",
+        category: Any = "auto",
+        intensity: Any = None,
+        situation: Any = "",
+        **kwargs: Any,
+    ):
+        host_state = await self._read_host_proactive(force=True)
+        if not host_state.available:
+            return Ok({
+                "summary": "读不到 N.E.K.O 的主动搭话设置，这次没有打扰主人。",
+                "sent": False,
+                "reason": "host_unavailable",
+                "host_proactive": host_state.as_dict(),
+            })
+        if not host_state.enabled:
+            return Ok({
+                "summary": "N.E.K.O 的主动搭话开关是关闭的，这次没有打扰主人。",
+                "sent": False,
+                "reason": "host_proactive_off",
+                "host_proactive": host_state.as_dict(),
+            })
+        try:
+            line = self._pick_line(
+                language=language,
+                category=category,
+                intensity=intensity,
+                situation=situation,
+            )
+        except Exception as exc:
+            self.logger.exception("[neko_taunt] taunt_proactive selection failed")
+            return Err(SdkError(f"台词选择失败（{type(exc).__name__}）"))
+        self._last_line_id = line.id
+        submitted, reason = self._push_line(
+            line,
+            situation=str(situation or "这是猫娘主动搭话时顺便说的一句。"),
+            proactive=True,
+            target_lanlan=_lanlan_from_kwargs(kwargs),
+        )
+        if not submitted:
+            return Err(SdkError(f"主动搭话没有送出去（{reason or 'transport unavailable'}）"))
+        return Ok({
+            "summary": (
+                f"已经按 N.E.K.O 的主动搭话设置，让猫娘用{lines.LANGUAGE_NAMES[line.lang]}"
+                f"说：『{line.text}』。"
+            ),
+            "line": line.text,
+            "language": line.lang,
+            "category": line.category,
+            "intensity": line.intensity,
+            "line_id": line.id,
+            "sent": True,
+            "host_proactive": host_state.as_dict(),
+        })
+
     # ------------------------------------------------------------------
     # Entries: library / preview / status / mode
     # ------------------------------------------------------------------
@@ -571,17 +685,29 @@ class NekoTauntPlugin(NekoPluginBase):
         with self._auto_lock:
             auto_count = self._auto_count
             auto_last_at = self._auto_last_at
+        host_state = await self._read_host_proactive(force=True)
+        effective_interval = self._effective_auto_interval_seconds(host_state)
+        host_note = ""
+        if self._cfg.get("follow_host_proactive", True):
+            host_note = (
+                "；跟随宿主主动搭话（已开启）"
+                if host_state.available and host_state.enabled
+                else "；跟随宿主主动搭话（当前关闭或不可用，自动嘲讽不会触发）"
+            )
         data = {
             "summary": (
                 f"语录 {len(lines.LINES)} 句，默认语言 {self._cfg['default_language']}，"
                 f"默认强度 {self._cfg['default_intensity']}，"
                 f"自动嘲讽 {'开启' if self._cfg['auto_taunt'] else '关闭'}"
-                f"（本次已 {auto_count}/{self._cfg['auto_taunt_max_per_session']} 次）。"
+                f"（本次已 {auto_count}/{self._cfg['auto_taunt_max_per_session']} 次）"
+                f"{host_note}。"
             ),
             "config": dict(self._cfg),
             "counts": lines.counts(),
             "auto_count": auto_count,
             "auto_last_at": auto_last_at,
+            "effective_auto_interval_seconds": effective_interval,
+            "host_proactive": host_state.as_dict(),
             "started_at": self._started_at,
             "last_line_id": self._last_line_id,
             "recent_line_ids": list(self._selector.recent_ids),
@@ -600,20 +726,24 @@ class NekoTauntPlugin(NekoPluginBase):
         self,
         *,
         enabled: Any,
-        interval_minutes: Any = 0,
+        interval_minutes: Any = None,
         **_,
     ):
         if isinstance(enabled, str):
             enabled = enabled.strip().lower() in {"1", "true", "yes", "on", "开", "开启"}
         enabled = bool(enabled)
-        try:
-            interval = int(interval_minutes or 0)
-        except (TypeError, ValueError):
-            interval = 0
+        interval: int | None
+        if interval_minutes in (None, ""):
+            interval = None
+        else:
+            try:
+                interval = int(interval_minutes)
+            except (TypeError, ValueError):
+                interval = None
 
         update: Dict[str, Any] = {"auto_taunt": enabled}
-        if interval > 0:
-            update["auto_taunt_interval_minutes"] = max(5, min(180, interval))
+        if interval is not None:
+            update["auto_taunt_interval_minutes"] = max(0, min(180, interval))
         self._cfg.update(lines.normalize_config({**self._cfg, **update}))
         with self._auto_lock:
             self._auto_last_at = time.time()
@@ -628,15 +758,23 @@ class NekoTauntPlugin(NekoPluginBase):
             self.logger.warning("[neko_taunt] config persist failed: {}", type(exc).__name__)
 
         minutes = self._cfg["auto_taunt_interval_minutes"]
+        follow_host = bool(self._cfg.get("follow_host_proactive", True))
+        if enabled and minutes == 0 and follow_host:
+            interval_note = "，跟随 N.E.K.O 主动搭话间隔（最低 5 分钟）"
+        elif enabled:
+            interval_note = f"，间隔 {minutes} 分钟"
+        else:
+            interval_note = ""
         summary = (
             f"自动嘲讽已{'开启' if enabled else '关闭'}"
-            + (f"，间隔 {minutes} 分钟" if enabled else "")
+            + interval_note
             + ("（已写入配置）" if persisted else "（仅本次运行生效）")
         )
         return Ok({
             "summary": summary,
             "auto_taunt": enabled,
             "interval_minutes": minutes,
+            "follow_host_proactive": follow_host,
             "persisted": persisted,
         })
 
@@ -654,11 +792,20 @@ class NekoTauntPlugin(NekoPluginBase):
         if not self._cfg.get("auto_taunt"):
             return Ok({"skipped": "disabled"})
 
-        now = time.time()
-        interval_seconds = max(5, int(self._cfg.get("auto_taunt_interval_minutes", 20))) * 60
-        max_per_session = max(1, int(self._cfg.get("auto_taunt_max_per_session", 8)))
         if lines.in_quiet_hours(datetime.now(), str(self._cfg.get("quiet_hours", ""))):
             return Ok({"skipped": "quiet_hours"})
+
+        host_state: host_proactive.HostProactiveState | None = None
+        if self._cfg.get("follow_host_proactive", True):
+            host_state = await self._read_host_proactive()
+            if not host_state.available:
+                return Ok({"skipped": "host_unavailable"})
+            if not host_state.enabled:
+                return Ok({"skipped": "host_proactive_off"})
+
+        now = time.time()
+        interval_seconds = self._effective_auto_interval_seconds(host_state)
+        max_per_session = max(1, int(self._cfg.get("auto_taunt_max_per_session", 8)))
 
         with self._auto_lock:
             if self._auto_count >= max_per_session:
@@ -686,4 +833,10 @@ class NekoTauntPlugin(NekoPluginBase):
             count = self._auto_count
         self._last_line_id = line.id
         self.logger.info("[neko_taunt] auto taunt sent ({}), line={}", count, line.id)
-        return Ok({"sent": True, "line_id": line.id, "auto_count": count})
+        return Ok({
+            "sent": True,
+            "line_id": line.id,
+            "auto_count": count,
+            "follow_host_proactive": bool(self._cfg.get("follow_host_proactive", True)),
+            "host_proactive": host_state.as_dict() if host_state is not None else None,
+        })

@@ -21,12 +21,19 @@ default_intensity = 2
 # `auto_taunt_max_per_session` times per plugin session, never inside
 # `quiet_hours`.
 auto_taunt = false
-auto_taunt_interval_minutes = 20
+# 0 = follow N.E.K.O's own proactive-chat interval (at least 5 minutes);
+# 5-180 = use this fixed interval.
+auto_taunt_interval_minutes = 0
 auto_taunt_max_per_session = 8
 
 # auto | zako | clumsy | slow | lose | idle | clingy | praise
 # `idle` is the "猫娘还没到 / waiting" mood; `auto` picks a weighted category.
 auto_taunt_category = "auto"
+
+# Only auto-taunt while N.E.K.O's own 主动搭话 switch is on, and use its
+# interval when `auto_taunt_interval_minutes` is 0.  Set false to let the
+# plugin use its own timer independently of the host switch.
+follow_host_proactive = true
 
 # Local clock time.  Supports overnight ranges such as 23:00-08:00.
 # Set to "" to disable quiet hours.

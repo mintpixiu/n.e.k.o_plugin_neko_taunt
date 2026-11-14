@@ -61,15 +61,21 @@
         "auto_taunt_interval_minutes": {
           "type": "integer",
           "title": "自动嘲讽间隔（分钟）",
-          "description": "两次自动嘲讽之间至少间隔多久。最小 5 分钟，最大 180 分钟。",
-          "minimum": 5,
+          "description": "0 = 跟随宿主主动搭话的间隔（最低 5 分钟）；5-180 = 固定间隔。",
+          "minimum": 0,
           "maximum": 180,
-          "default": 20,
+          "default": 0,
           "x-title-i18n": {
             "zh-CN": "自动嘲讽间隔（分钟）",
             "en": "Auto-taunt interval (minutes)",
             "ja": "自動罵倒の間隔（分）",
             "ko": "자동 놀리기 간격(분)"
+          },
+          "x-description-i18n": {
+            "zh-CN": "0 = 跟随宿主主动搭话的间隔（最低 5 分钟）；5-180 = 固定间隔。",
+            "en": "0 follows the host proactive-chat interval (minimum 5 minutes); 5-180 is a fixed interval.",
+            "ja": "0 はホストの自発会話の間隔に追従（最低5分）。5〜180 は固定間隔。",
+            "ko": "0은 호스트 선제 대화 간격을 따릅니다(최소 5분). 5~180은 고정 간격입니다."
           }
         },
         "auto_taunt_max_per_session": {
@@ -97,6 +103,24 @@
             "en": "Preferred auto-taunt mood",
             "ja": "自動罵倒の気分",
             "ko": "자동 놀리기 분위기"
+          }
+        },
+        "follow_host_proactive": {
+          "type": "boolean",
+          "title": "跟随宿主主动搭话",
+          "description": "开启后，只有 N.E.K.O 的「主动搭话」开关打开时才会自动嘲讽；宿主关闭时绝不主动打扰。",
+          "default": true,
+          "x-title-i18n": {
+            "zh-CN": "跟随宿主主动搭话",
+            "en": "Follow host proactive chat",
+            "ja": "ホストの自発会話に追従",
+            "ko": "호스트 선제 대화 따르기"
+          },
+          "x-description-i18n": {
+            "zh-CN": "开启后，只有 N.E.K.O 的「主动搭话」开关打开时才会自动嘲讽；宿主关闭时绝不主动打扰。",
+            "en": "When on, auto-taunts only fire while N.E.K.O's own proactive-chat switch is on.",
+            "ja": "オンの場合、N.E.K.O の自発会話スイッチがオンのときだけ自動罵倒します。",
+            "ko": "켜면 N.E.K.O의 선제 대화 스위치가 켜져 있을 때만 자동으로 놀립니다."
           }
         },
         "quiet_hours": {

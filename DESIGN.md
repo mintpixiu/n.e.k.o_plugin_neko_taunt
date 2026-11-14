@@ -16,7 +16,9 @@
 
 ## 2. 非目标
 
-- 不调用任何模型 API（没有密钥、没有网络）。
+- 不调用任何模型 API（没有密钥、没有外部网络）。
+- 唯一的 HTTP 请求是只读 `GET http://127.0.0.1:48911/api/proactive/mode`，
+  用于读取宿主自己的「主动搭话」开关；代码拒绝非 loopback 地址。
 - 不读聊天历史、屏幕、剪贴板、文件。
 - 不修改宿主的人设 / system prompt。
 - 不生成新的辱骂词；台词库是固定集合。
@@ -37,8 +39,10 @@
 │  │ Plugin process: NekoTauntPlugin                       │  │
 │  │  ├─ taunt_now / taunt_preview / taunt_library         │  │
 │  │  ├─ taunt_speak  ── push_message(ai_behavior=respond) │  │
+│  │  ├─ taunt_proactive ── 先读宿主主动搭话开关            │  │
 │  │  ├─ taunt_status / taunt_mode                         │  │
 │  │  ├─ auto_taunt_tick (opt-in timer)                    │  │
+│  │  ├─ host_proactive.py: loopback GET /api/proactive/mode│  │
 │  │  └─ lines.py: 146 lines + TauntSelector               │  │
 │  └───────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
@@ -47,7 +51,8 @@
 | 文件 | 职责 |
 |---|---|
 | `lines.py` | 纯数据 + 纯逻辑：台词、分类、语言权重、情境推断、免打扰、提示渲染。无 SDK 依赖，可在 Linux CI 直接 import。 |
-| `__init__.py` | SDK facade：生命周期、配置、LLM 工具、六个入口、可选的定时器与 `push_message`。 |
+| `host_proactive.py` | 只读宿主主动搭话开关：loopback URL 校验、响应解析、30 秒缓存。 |
+| `__init__.py` | SDK facade：生命周期、配置、LLM 工具、七个入口、可选的定时器与 `push_message`。 |
 | `plugin.toml` | 身份、SDK 约束、`[taunt]` 默认配置。 |
 | `config.schema.json` | 配置面板字段与四语说明。 |
 | `i18n/` | 插件名 / 描述 / 按钮的 zh-CN、en、ja、ko。 |
@@ -142,7 +147,7 @@ class TauntLine:
 同样的素材，但作为 `@plugin_entry` 返回。用于宿主 Agent 路由（用户说「骂我」时由宿主选插件），
 不主动推送，避免与 Agent 自己的回复重复。
 
-### 6.3 主动推送：`taunt_speak` / 自动模式
+### 6.3 主动推送：`taunt_speak` / `taunt_proactive` / 自动模式
 
 `push_message(visibility=[], ai_behavior="respond", parts=[text])`：
 
@@ -150,6 +155,11 @@ class TauntLine:
 - `ai_behavior="respond"`：宿主立即起一轮对话。
 - 文本里带 `{MASTER_NAME}` 占位符，由宿主按 session 展开（插件不知道消息会落到哪个角色）。
 - `target_lanlan` 从入口 `_ctx` 取，保证多角色时路由正确。
+
+`taunt_speak` 是用户明确要求时的立即版，不检查宿主开关。
+`taunt_proactive` 在推送前先读宿主的「主动搭话」开关：关闭或不可用时只返回
+`sent=false`，不推送，避免和宿主自己的主动搭话策略打架。自动模式同样使用
+这个开关（见第 7 节）。
 
 ### 6.4 预览 / 语录库 / 状态
 
@@ -165,8 +175,13 @@ startup: auto_taunt=false, last=now, count=0
 tick every 60s:
    ├─ disabled            → skip
    ├─ quiet_hours         → skip
+   ├─ follow_host_proactive?
+   │    ├─ probe loopback /api/proactive/mode
+   │    ├─ unavailable    → skip host_unavailable
+   │    └─ disabled       → skip host_proactive_off
    ├─ count >= max        → skip
    ├─ now-last < interval → skip
+   │    (interval = configured minutes, or host interval when configured 0)
    ├─ reserve slot (last=now)
    ├─ select line (category=auto_taunt_category)
    ├─ push_message
@@ -180,7 +195,8 @@ tick every 60s:
 
 设计取舍：
 
-- 定时器固定 60 秒 tick，间隔由配置分钟数控制；最小 5 分钟，避免频繁起 LLM 轮次。
+- 定时器固定 60 秒 tick；配置 0 时跟随宿主 `proactiveChatInterval`，最低 5 分钟，避免频繁起 LLM 轮次。
+- `follow_host_proactive=true` 时，宿主主动搭话关闭/不可用是**硬门**：自动模式不推送，也不会偷偷退回独立计时。
 - 上限是「每次插件会话」，不持久化；重启后重新计数。
 - 免打扰用本地时钟；支持 `23:00-08:00` 跨午夜。
 - 推送失败不增加计数，但把 `last` 置 0，下一次 tick 可重试；不会在同一 tick 内循环重试。
@@ -192,6 +208,7 @@ tick every 60s:
 - LLM 工具错误用文档形状：`{"output": {"reason": ...}, "is_error": true, "error": "CODE"}`。
 - 入口错误用 `Err(SdkError(...))`。
 - 失败日志只写 id / 分类 / 原因，不写主人原文或对话内容。
+- 宿主探测失败只记录异常类型，不把 HTML/响应体写日志。
 
 ## 9. 测试策略
 
@@ -201,9 +218,10 @@ tick every 60s:
 | 选择 | 语言/分类/强度约束、10 次不重复、mix 日语占比、异常输入 | 纯函数，固定 seed |
 | 情境 | 12 个中/日/英/韩关键词 | 防止关键词表退化 |
 | 时间 | 跨午夜、边界、坏格式 | 不依赖当前时间 |
+| 宿主开关 | loopback URL 校验、响应解析、30 秒缓存、非 loopback 拒绝且不发请求 | 不依赖真实主服务 |
 | 提示 | 包含原句、释义、语气、`{MASTER_NAME}`、边界 | 交付契约 |
 | 清单 | 入口全 async、工具名、i18n 键集、schema 键集 | 市场/宿主契约 |
-| 静态 | 无 requirements.txt / vendor / 网络 import | 隐私与打包规则 |
+| 静态 | 无 requirements.txt / vendor / 外部网络 import | 隐私与打包规则 |
 
 所有测试只用 stdlib；宿主 SDK 不被 import，所以 Linux CI 不需要 N.E.K.O 运行时。
 

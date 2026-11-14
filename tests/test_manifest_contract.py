@@ -71,6 +71,8 @@ def test_sdk_and_runtime_defaults() -> None:
     assert manifest["taunt"]["default_language"] == "ja"
     assert 1 <= manifest["taunt"]["default_intensity"] <= 3
     assert manifest["taunt"]["quiet_hours"]
+    assert manifest["taunt"]["auto_taunt_interval_minutes"] == 0
+    assert manifest["taunt"]["follow_host_proactive"] is True
 
 
 def test_required_entries_and_tool_exist_and_are_async() -> None:
@@ -86,7 +88,8 @@ def test_required_entries_and_tool_exist_and_are_async() -> None:
 
     entry_ids = _decorated_ids(tree, "plugin_entry", "id")
     tool_names = _decorated_ids(tree, "llm_tool", "name")
-    for required in ("taunt_now", "taunt_speak", "taunt_preview", "taunt_library", "taunt_status", "taunt_mode"):
+    for required in ("taunt_now", "taunt_speak", "taunt_proactive", "taunt_preview",
+                     "taunt_library", "taunt_status", "taunt_mode"):
         assert required in entry_ids, required
     assert tool_names == ["neko_taunt"], tool_names
     assert len(entry_ids) == len(set(entry_ids)), "duplicate @plugin_entry ids"
@@ -164,18 +167,22 @@ def test_config_schema_covers_every_manifest_key() -> None:
         assert prop.get("type") in {"string", "number", "integer", "boolean", "object", "array"}, key
 
 
-def test_no_requirements_or_vendor_or_network_dependencies() -> None:
+def test_no_requirements_or_vendor_or_external_network_dependencies() -> None:
     assert not (ROOT / "requirements.txt").exists()
     assert not (ROOT / "vendor").exists()
+    external_modules = {"requests", "aiohttp", "httpx", "socket", "http.client"}
     for filename in ("__init__.py", "lines.py"):
         tree = ast.parse((ROOT / filename).read_text(encoding="utf-8"))
-        network_modules = {"requests", "aiohttp", "httpx", "socket", "urllib", "http.client"}
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
-                    assert alias.name.split(".")[0] not in network_modules, (filename, alias.name)
+                    assert alias.name.split(".")[0] not in external_modules, (filename, alias.name)
             elif isinstance(node, ast.ImportFrom) and node.module:
-                assert node.module.split(".")[0] not in network_modules, (filename, node.module)
+                assert node.module.split(".")[0] not in external_modules, (filename, node.module)
+    # host_proactive.py may use urllib, but only for the literal loopback host.
+    host_text = (ROOT / "host_proactive.py").read_text(encoding="utf-8")
+    assert "http://127.0.0.1:48911" in host_text
+    assert "https://" not in host_text
 
 
 def test_tool_and_entry_result_contract() -> None:
