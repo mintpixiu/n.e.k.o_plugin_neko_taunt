@@ -8,15 +8,18 @@ on:
       - "v*"
   workflow_dispatch:
 
+# The current standard Market release workflow attests the package with
+# actions/attest-build-provenance, so the caller must also grant the OIDC and
+# attestation permissions it requests.  Without these the reusable workflow
+# fails at startup (GitHub rejects the permission escalation).
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   release:
-    # Pinned: the upstream @main reusable workflow currently fails to start
-    # (startup_failure, observed 2026-11-14).  0ac2afd0 is the last known-good
-    # version of the same standard Market release workflow.
-    uses: Project-N-E-K-O/N.E.K.O/.github/workflows/plugin-market-release.yml@0ac2afd0e40250a4cff1501a32f2db1124fe971d
+    uses: Project-N-E-K-O/N.E.K.O/.github/workflows/plugin-market-release.yml@main
     with:
       plugin-id: neko_taunt
       neko-repository: Project-N-E-K-O/N.E.K.O
