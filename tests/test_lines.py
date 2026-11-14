@@ -8,7 +8,9 @@ from pathlib import Path
 
 import pytest
 
-import lines
+# Imported through pytest so the local module is not a top-level import that
+# older ruff/isort versions want to regroup differently.
+lines = pytest.importorskip("lines")
 
 ROOT = Path(__file__).resolve().parents[1]
 
