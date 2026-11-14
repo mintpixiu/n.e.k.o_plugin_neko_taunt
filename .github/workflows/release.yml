@@ -13,7 +13,10 @@ permissions:
 
 jobs:
   release:
-    uses: Project-N-E-K-O/N.E.K.O/.github/workflows/plugin-market-release.yml@main
+    # Pinned: the upstream @main reusable workflow currently fails to start
+    # (startup_failure, observed 2026-11-14).  0ac2afd0 is the last known-good
+    # version of the same standard Market release workflow.
+    uses: Project-N-E-K-O/N.E.K.O/.github/workflows/plugin-market-release.yml@0ac2afd0e40250a4cff1501a32f2db1124fe971d
     with:
       plugin-id: neko_taunt
       neko-repository: Project-N-E-K-O/N.E.K.O
